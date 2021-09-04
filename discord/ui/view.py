@@ -169,6 +169,7 @@ class View:
         self.__timeout_expiry: Optional[float] = None
         self.__timeout_task: Optional[asyncio.Task[None]] = None
         self.__stopped: asyncio.Future[bool] = loop.create_future()
+        self.__paused: Optional[bool] = False
 
     def __repr__(self) -> str:
         return f'<{self.__class__.__name__} timeout={self.timeout} children={len(self.children)}>'
@@ -351,7 +352,7 @@ class View:
         try:
             if self.timeout:
                 self.__timeout_expiry = time.monotonic() + self.timeout
-
+    
             allow = await self.interaction_check(interaction)
             if not allow:
                 return
@@ -375,12 +376,14 @@ class View:
     def _dispatch_timeout(self):
         if self.__stopped.done():
             return
-
         self.__stopped.set_result(True)
         asyncio.create_task(self.on_timeout(), name=f'discord-ui-view-timeout-{self.id}')
 
     def _dispatch_item(self, item: Item, interaction: Interaction):
         if self.__stopped.done():
+            return
+
+        if self.__paused:
             return
 
         asyncio.create_task(self._scheduled_task(item, interaction), name=f'discord-ui-view-dispatch-{self.id}')
@@ -423,6 +426,17 @@ class View:
             self.__cancel_callback(self)
             self.__cancel_callback = None
 
+    def pause(self) -> None:
+        """Pauses the view so wait can be used multiple times
+        """
+        self.__stopped.set_result(False)
+        self.__paused = not self.__paused
+        self.__stopped: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
+
+    def is_paused(self) -> bool:
+        """:class:`bool`: Whether the view is currently paused or not."""
+        return self.__paused
+    
     def is_finished(self) -> bool:
         """:class:`bool`: Whether the view has finished interacting."""
         return self.__stopped.done()
@@ -451,6 +465,7 @@ class View:
             If ``True``, then the view timed out. If ``False`` then
             the view finished normally.
         """
+        self.__paused = False
         return await self.__stopped
 
 
