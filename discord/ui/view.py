@@ -427,10 +427,10 @@ class View:
             self.__cancel_callback = None
 
     def pause(self) -> None:
-        """Pauses the view so wait can be used multiple times
+        """Pauses the view so wait() can be used multiple times
         """
         self.__stopped.set_result(False)
-        self.__paused = not self.__paused
+        self.__paused = True
         self.__stopped: asyncio.Future[bool] = asyncio.get_running_loop().create_future()
 
     def is_paused(self) -> bool:
